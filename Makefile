@@ -8,7 +8,7 @@
 
 SRC=$(wildcard *.cpp)
 OBJ=$(SRC:.cpp=.o)
-
+JAVAWRAP=$(SRC:.cpp=_wrap.cpp)
 
 ############################
 # Building
@@ -16,6 +16,17 @@ OBJ=$(SRC:.cpp=.o)
 default: libfaiss.a
 
 all: libfaiss.a libfaiss.$(SHAREDEXT)
+
+java: $(OBJ)
+	[ -d java ] || mkdir java
+	[ -d java/class ] || mkdir java/class
+	$(SWIG) -c++ -java -package com.facebook.research.faiss -outdir java -o faiss_swig_wrap.cpp swig/faiss.i
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(CPUFLAGS) -I. -I$$JAVA_HOME/include \
+		-I$$JAVA_HOME/include/linux -c faiss_swig_wrap.cpp 
+	$(CXX) $(SHAREDFLAGS) $(LDFLAGS) *.o -o libfaiss_swig.so $(LIBS)
+	$(JAVAC) -target $(JAVA_TARGET) -d java/class/ java/*.java
+	cd java/class && \
+	$(JAR) -cf ../../faiss.jar com
 
 libfaiss.a: $(OBJ)
 	ar r $@ $^
@@ -27,9 +38,12 @@ libfaiss.$(SHAREDEXT): $(OBJ)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(CPUFLAGS) -c $< -o $@
 
 clean:
+	rm -rf java/ faiss_swig_wrap.cpp
 	rm -f libfaiss.*
 	rm -f $(OBJ)
 
+clean_java:
+	rm -rf java/ faiss_swig_wrap.cpp faiss.jar libfaiss_swig.so
 
 ############################
 # Installing
@@ -89,4 +103,4 @@ py:
 	$(MAKE) -C python build
 
 
-.PHONY: all clean default demos install installdirs py test uninstall
+.PHONY: all java clean clean_java default demos install installdirs py test uninstall
